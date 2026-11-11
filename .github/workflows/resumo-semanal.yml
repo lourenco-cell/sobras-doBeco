@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   enviar:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # versão fixa: o "ubuntu-latest" está a mudar para o Ubuntu 26
     timeout-minutes: 15
     steps:
       - name: Descarregar o repositório
@@ -26,9 +26,20 @@ jobs:
 
       - name: Instalar dependências
         working-directory: automacao
+        run: npm install --no-audit --no-fund
+
+      - name: Preparar o navegador
+        timeout-minutes: 8
+        working-directory: automacao
         run: |
-          npm install --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          # Usa o Chrome que o GitHub já traz instalado (não descarrega nada, mais rápido e fiável).
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "Chrome já instalado: $(google-chrome --version)"
+            echo "CHROME_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          else
+            echo "Chrome não encontrado; a instalar o do Playwright."
+            npx playwright install --with-deps chromium
+          fi
 
       - name: Gerar o resumo e enviar por email
         working-directory: automacao
