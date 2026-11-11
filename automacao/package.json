@@ -1,0 +1,10 @@
+{
+  "name": "dobeco-resumo-semanal",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Gera o Resumo semanal em PDF e envia por email (só lê os dados da nuvem, nunca escreve).",
+  "dependencies": {
+    "nodemailer": "^10.5.0",
+    "playwright": "^1.65.0"
+  }
+}
