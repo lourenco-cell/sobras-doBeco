@@ -1,0 +1,39 @@
+# Envia todas as segundas-feiras o Resumo semanal (PDF) por email.
+# Ficheiro a guardar em:  .github/workflows/resumo-semanal.yml
+name: Resumo semanal por email
+
+on:
+  schedule:
+    # Segundas-feiras às 12:30 UTC (= 12:30 em Lisboa no inverno, 13:30 no verão).
+    - cron: "30 12 * * 1"
+  workflow_dispatch:   # permite correr à mão (botão "Run workflow") para testar
+
+permissions:
+  contents: read
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Descarregar o repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar o Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependências
+        working-directory: automacao
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Gerar o resumo e enviar por email
+        working-directory: automacao
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: node resumo-semanal.js
