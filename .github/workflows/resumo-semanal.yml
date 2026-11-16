@@ -4,31 +4,58 @@ name: Resumo semanal por email
 
 on:
   schedule:
-    # Segundas-feiras às 12:30 UTC (= 12:30 em Lisboa no inverno, 13:30 no verão).
-    - cron: "30 12 * * 1"
-  workflow_dispatch:   # permite correr à mão (botão "Run workflow") para testar
+    # O GitHub às vezes atrasa ou salta tarefas agendadas (sobretudo às horas redondas e às meias horas).
+    # Por isso há 3 tentativas à segunda-feira, em minutos "pouco concorridos". A primeira que correr
+    # envia o email; as outras vêem que já foi enviado e não fazem nada (ver o passo "Evitar envio duplicado").
+    # Horas em UTC: 12:17 = 12:17 em Lisboa no inverno (13:17 no verão).
+    - cron: "17 12 * * 1"
+    - cron: "47 13 * * 1"
+    - cron: "17 16 * * 1"
+  workflow_dispatch:   # permite correr à mão (botão "Run workflow") para testar; envia sempre
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   enviar:
     runs-on: ubuntu-24.04   # versão fixa: o "ubuntu-latest" está a mudar para o Ubuntu 26
     timeout-minutes: 15
     steps:
+      - name: Evitar envio duplicado (só nas execuções agendadas)
+        id: guarda
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Já houve um envio agendado com sucesso nos últimos 5 dias?
+          desde=$(date -u -d '5 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          n=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow resumo-semanal.yml --event schedule --status success --created ">=$desde" --json databaseId --jq 'length')
+          echo "Envios agendados com sucesso nos últimos 5 dias: ${n:-0}"
+          if [ "${n:-0}" -gt 0 ]; then
+            echo "enviar=nao" >> "$GITHUB_OUTPUT"
+            echo "Já foi enviado esta semana; esta tentativa não faz nada."
+          else
+            echo "enviar=sim" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Descarregar o repositório
+        if: github.event_name != 'schedule' || steps.guarda.outputs.enviar == 'sim'
         uses: actions/checkout@v4
 
       - name: Instalar o Node
+        if: github.event_name != 'schedule' || steps.guarda.outputs.enviar == 'sim'
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Instalar dependências
+        if: github.event_name != 'schedule' || steps.guarda.outputs.enviar == 'sim'
         working-directory: automacao
         run: npm install --no-audit --no-fund
 
       - name: Preparar o navegador
+        if: github.event_name != 'schedule' || steps.guarda.outputs.enviar == 'sim'
         timeout-minutes: 8
         working-directory: automacao
         run: |
@@ -42,6 +69,7 @@ jobs:
           fi
 
       - name: Gerar o resumo e enviar por email
+        if: github.event_name != 'schedule' || steps.guarda.outputs.enviar == 'sim'
         working-directory: automacao
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
